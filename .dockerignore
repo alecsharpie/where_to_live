@@ -1,0 +1,14 @@
+Dockerfile
+.dockerignore
+.git
+.gitignore
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+local_dev.db
+local_dev.db-journal
+gcp-setup/
+README.md

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Manage Locations</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f9f9f9; }
+        h1, h2 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; background-color: #fff; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        button { padding: 8px 12px; margin-right: 5px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; }
+        .add-btn { background-color: #4CAF50; color: white; }
+        .edit-btn { background-color: #FFC107; }
+        .delete-btn { background-color: #f44336; color: white; }
+        .action-btn-group button { margin-bottom: 5px;}
+        form { background-color: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; }
+        form div { margin-bottom: 10px; }
+        form label { display: block; margin-bottom: 5px; font-weight: bold; }
+        form input[type="text"], form input[type="number"], form textarea {
+            width: calc(100% - 22px); padding: 10px; border: 1px solid #ccc; border-radius: 4px;
+        }
+        form button { background-color: #007BFF; color: white; }
+        .hidden { display: none; }
+        nav { margin-bottom: 20px; }
+        nav a { padding: 10px; text-decoration: none; background-color: #eee; color: #333; margin-right: 5px; border-radius: 4px;}
+        nav a:hover { background-color: #ddd; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Map Page</a>
+        <a href="/admin">Admin Page</a>
+    </nav>
+    <h1>Manage Potential Locations</h1>
+
+    <div id="editLocationFormContainer" class="hidden">
+        <h2>Edit Location</h2>
+        <form id="editLocationForm">
+            <input type="hidden" id="editLocationId">
+            <div>
+                <label for="editName">Name:</label>
+                <input type="text" id="editName" name="name" required>
+            </div>
+            <div>
+                <label for="editAddress">Address (will geocode if lat/lng empty):</label>
+                <input type="text" id="editAddress" name="address">
+            </div>
+            <div>
+                <label for="editLatitude">Latitude:</label>
+                <input type="number" step="any" id="editLatitude" name="latitude">
+            </div>
+            <div>
+                <label for="editLongitude">Longitude:</label>
+                <input type="number" step="any" id="editLongitude" name="longitude">
+            </div>
+            <div>
+                <label for="editPopulation">Population:</label>
+                <input type="number" id="editPopulation" name="population">
+            </div>
+            <div>
+                <label for="editWikipediaUrl">Wikipedia URL:</label>
+                <input type="text" id="editWikipediaUrl" name="wikipedia_url">
+            </div>
+            <div>
+                <label for="editNotes">Notes:</label>
+                <textarea id="editNotes" name="notes"></textarea>
+            </div>
+            <button type="submit">Save Changes</button>
+            <button type="button" onclick="cancelEdit()">Cancel</button>
+        </form>
+    </div>
+
+    <h2>Add New Location</h2>
+    <form id="addLocationForm">
+        <div>
+            <label for="addName">Name:</label>
+            <input type="text" id="addName" name="name" required>
+        </div>
+        <div>
+            <label for="addAddress">Address (will geocode if lat/lng empty):</label>
+            <input type="text" id="addAddress" name="address">
+        </div>
+        <div>
+            <label for="addLatitude">Latitude (optional, if address provided):</label>
+            <input type="number" step="any" id="addLatitude" name="latitude">
+        </div>
+        <div>
+            <label for="addLongitude">Longitude (optional, if address provided):</label>
+            <input type="number" step="any" id="addLongitude" name="longitude">
+        </div>
+        <div>
+            <label for="addPopulation">Population:</label>
+            <input type="number" id="addPopulation" name="population">
+        </div>
+        <div>
+            <label for="addWikipediaUrl">Wikipedia URL:</label>
+            <input type="text" id="addWikipediaUrl" name="wikipedia_url">
+        </div>
+        <div>
+            <label for="addNotes">Notes:</label>
+            <textarea id="addNotes" name="notes"></textarea>
+        </div>
+        <button type="submit" class="add-btn">Add Location</button>
+    </form>
+
+    <h2>Existing Locations</h2>
+    <table id="locationsTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Lat/Lng</th>
+                <th>Population</th>
+                <th>Driving Time</th>
+                <th>From Address</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Location rows will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+
+    <script>
+        const addForm = document.getElementById('addLocationForm');
+        const editForm = document.getElementById('editLocationForm');
+        const editFormContainer = document.getElementById('editLocationFormContainer');
+        const locationsTableBody = document.querySelector('#locationsTable tbody');
+
+        const API_URL = '/api/locations';
+
+        // Load locations and populate the table
+        async function fetchAndDisplayLocations() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const locations = await response.json();
+
+                locationsTableBody.innerHTML = ''; // Clear existing rows
+                locations.forEach(loc => {
+                    const row = locationsTableBody.insertRow();
+                    row.innerHTML = `
+                        <td>${loc.id}</td>
+                        <td>${loc.name}</td>
+                        <td>${loc.address || 'N/A'}</td>
+                        <td>${loc.latitude ? loc.latitude.toFixed(4) : 'N/A'} / ${loc.longitude ? loc.longitude.toFixed(4) : 'N/A'}</td>
+                        <td>${loc.population || 'N/A'}</td>
+                        <td>${loc.driving_time_text || 'N/A'}</td>
+                        <td>${loc.reference_address || 'N/A'}</td>
+                        <td class="action-btn-group">
+                            <button class="edit-btn" onclick="showEditForm(${loc.id})">Edit</button>
+                            <button class="delete-btn" onclick="deleteLocation(${loc.id})">Delete</button>
+                        </td>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error fetching locations:', error);
+                locationsTableBody.innerHTML = '<tr><td colspan="8">Error loading locations.</td></tr>';
+            }
+        }
+
+        // Add new location
+        addForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(addForm);
+            const data = Object.fromEntries(formData.entries());
+
+            // Convert empty strings for numbers to null
+            ['latitude', 'longitude', 'population'].forEach(field => {
+                if (data[field] === '') data[field] = null;
+            });
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP error! status: ${response.status} - ${errorData.error} - ${errorData.message}`);
+                }
+                addForm.reset();
+                fetchAndDisplayLocations(); // Refresh table
+            } catch (error) {
+                console.error('Error adding location:', error);
+                alert(`Error adding location: ${error.message}`);
+            }
+        });
+
+        // Show edit form with location data
+        async function showEditForm(id) {
+            try {
+                const response = await fetch(`${API_URL}/${id}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const loc = await response.json();
+
+                document.getElementById('editLocationId').value = loc.id;
+                document.getElementById('editName').value = loc.name || '';
+                document.getElementById('editAddress').value = loc.address || '';
+                document.getElementById('editLatitude').value = loc.latitude || '';
+                document.getElementById('editLongitude').value = loc.longitude || '';
+                document.getElementById('editPopulation').value = loc.population || '';
+                document.getElementById('editWikipediaUrl').value = loc.wikipedia_url || '';
+                document.getElementById('editNotes').value = loc.notes || '';
+
+                editFormContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error fetching location for edit:', error);
+                alert('Error fetching location details.');
+            }
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            editFormContainer.classList.add('hidden');
+            editForm.reset();
+        }
+
+        // Submit edited location
+        editForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const id = document.getElementById('editLocationId').value;
+            const formData = new FormData(editForm);
+            const data = Object.fromEntries(formData.entries());
+
+            ['latitude', 'longitude', 'population'].forEach(field => {
+                if (data[field] === '') data[field] = null;
+            });
+
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                 if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP error! status: ${response.status} - ${errorData.error} - ${errorData.message}`);
+                }
+                cancelEdit();
+                fetchAndDisplayLocations(); // Refresh table
+            } catch (error) {
+                console.error('Error updating location:', error);
+                alert(`Error updating location: ${error.message}`);
+            }
+        });
+
+        // Delete location
+        async function deleteLocation(id) {
+            if (!confirm('Are you sure you want to delete this location?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/${id}`, {
+                    method: 'DELETE',
+                });
+                if (!response.ok) {
+                     const errorData = await response.json();
+                     throw new Error(`HTTP error! status: ${response.status} - ${errorData.error} - ${errorData.message}`);
+                }
+                fetchAndDisplayLocations(); // Refresh table
+            } catch (error) {
+                console.error('Error deleting location:', error);
+                alert(`Error deleting location: ${error.message}`);
+            }
+        }
+
+        // Initial load
+        fetchAndDisplayLocations();
+    </script>
+</body>
+</html>

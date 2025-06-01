@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where to Live NZ - Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        #map { height: 70vh; width: 100%; }
+            nav { margin-bottom: 10px; background-color: #eee; padding:10px; }
+            nav a { padding: 5px 10px; text-decoration: none; color: #333; margin-right: 5px; border-radius: 3px;}
+            nav a:hover { background-color: #ddd; }
+        .controls { padding: 10px; background-color: #f4f4f4; }
+        .controls input[type="text"] { padding: 8px; margin-right: 5px; width: 300px; }
+        .controls button { padding: 8px 12px; }
+        .info-box { padding: 10px; background-color: #fff; border: 1px solid #ccc; margin-top:10px;}
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Map Page</a>
+        <a href="/admin">Admin Page</a>
+    </nav>
+    <div class="controls">
+        <h2>Find Locations Near Family</h2>
+        <input type="text" id="familyAddress" placeholder="Enter family's address in NZ">
+        <input type="number" id="maxDrivingTime" placeholder="Max driving time (minutes)" value="60">
+        <button onclick="filterLocations()">Filter Locations</button>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="info-box" id="resultsInfo">
+        <p>Enter an address and click "Filter Locations" to see results.</p>
+    </div>
+
+    <script>
+        // Initialize the map centered on New Zealand
+        var map = L.map('map').setView([-41.2865, 174.7762], 5); // Wellington, zoom level 5
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var markersLayer = L.layerGroup().addTo(map); // Layer to hold location markers
+
+        async function filterLocations() {
+            const familyAddress = document.getElementById('familyAddress').value;
+            const maxDrivingTimeMinutes = parseInt(document.getElementById('maxDrivingTime').value, 10);
+            const resultsInfo = document.getElementById('resultsInfo');
+
+            if (!familyAddress) {
+                alert("Please enter your family's address.");
+                return;
+            }
+            if (isNaN(maxDrivingTimeMinutes) || maxDrivingTimeMinutes <= 0) {
+                alert("Please enter a valid maximum driving time.");
+                return;
+            }
+
+            resultsInfo.innerHTML = '<p>Loading and calculating driving times...</p>';
+            markersLayer.clearLayers(); // Clear existing markers
+
+            try {
+                // 1. Fetch all potential locations
+                const locationsResponse = await fetch('/api/locations');
+                if (!locationsResponse.ok) {
+                    throw new Error(`Error fetching locations: ${locationsResponse.statusText}`);
+                }
+                const locations = await locationsResponse.json();
+                resultsInfo.innerHTML = `<p>Found ${locations.length} total potential locations. Now calculating driving times from '${familyAddress}'...</p>`;
+
+                let suitableLocationsCount = 0;
+
+                // 2. For each location, calculate driving time from familyAddress
+                //    and update it if necessary. Then, filter.
+                for (const loc of locations) {
+                    // Always recalculate driving time based on current familyAddress input
+                    const calcResponse = await fetch(`/api/locations/${loc.id}/calculate_driving_time`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ origin_address: familyAddress })
+                    });
+
+                    if (!calcResponse.ok) {
+                        console.warn(`Could not calculate driving time for ${loc.name}: ${calcResponse.statusText}`);
+                        // Optionally display this location with an error or skip
+                        L.marker([loc.latitude, loc.longitude])
+                            .addTo(markersLayer)
+                            .bindPopup(`<b>${loc.name}</b><br>Could not calculate driving time from ${familyAddress}.`)
+                            .openPopup();
+                        continue;
+                    }
+
+                    const updatedLoc = await calcResponse.json();
+
+                    // 3. Filter by driving time
+                    if (updatedLoc.driving_time_seconds && (updatedLoc.driving_time_seconds / 60) <= maxDrivingTimeMinutes) {
+                        suitableLocationsCount++;
+                        L.marker([updatedLoc.latitude, updatedLoc.longitude])
+                            .addTo(markersLayer)
+                            .bindPopup(`<b>${updatedLoc.name}</b><br>${updatedLoc.address}<br>Driving time: ${updatedLoc.driving_time_text}<br>(From: ${familyAddress})`)
+                            .openPopup();
+                    }
+                }
+                resultsInfo.innerHTML = `<p>Showing ${suitableLocationsCount} locations within ${maxDrivingTimeMinutes} minutes drive from '${familyAddress}'.</p>`;
+                 if (suitableLocationsCount === 0 && locations.length > 0) {
+                    resultsInfo.innerHTML += `<p>No locations found within the specified driving time. Try increasing the time or check the family address.</p>`;
+                } else if (locations.length === 0) {
+                     resultsInfo.innerHTML = `<p>No potential locations found in the database. Add some via the admin page.</p>`;
+                }
+
+
+            } catch (error) {
+                console.error('Error filtering locations:', error);
+                resultsInfo.innerHTML = `<p>Error: ${error.message}. Check console for details.</p>`;
+                alert('An error occurred. Please try again. Check console for details.');
+            }
+        }
+
+        // Initial load of all locations (without filtering by driving time)
+        async function loadInitialLocations() {
+            resultsInfo.innerHTML = '<p>Loading initial locations...</p>';
+            try {
+                const response = await fetch('/api/locations');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const locations = await response.json();
+
+                markersLayer.clearLayers();
+                if (locations.length === 0) {
+                     resultsInfo.innerHTML = '<p>No locations found in the database. Add some via the admin page.</p>';
+                     return;
+                }
+
+                locations.forEach(loc => {
+                    if (loc.latitude && loc.longitude) {
+                        L.marker([loc.latitude, loc.longitude])
+                            .addTo(markersLayer)
+                            .bindPopup(`<b>${loc.name}</b><br>${loc.address || 'Address not specified'}`);
+                    }
+                });
+                resultsInfo.innerHTML = `<p>Showing ${locations.length} locations. Enter family address to filter by driving time.</p>`;
+            } catch (error) {
+                console.error("Failed to load initial locations:", error);
+                resultsInfo.innerHTML = `<p>Error loading initial locations: ${error.message}</p>`;
+            }
+        }
+
+        // Load locations when the page loads
+        window.onload = loadInitialLocations;
+    </script>
+</body>
+</html>
