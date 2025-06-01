@@ -1,0 +1,17 @@
+[project]
+name = "where-to-live"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Alec", email = "alecsharpie@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+where-to-live = "where_to_live:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
