@@ -1,0 +1,42 @@
+# Git files
+.git
+.gitignore
+
+# Python virtual environment
+.venv
+venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# IDE and OS specific files
+.idea/
+.vscode/
+*.DS_Store
+
+# Test files and coverage reports (if any yet)
+tests/
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Local environment files
+.env
+*.env
+
+# Scripts (unless specifically needed in the container)
+# scripts/
+
+# README and other markdown files (unless needed)
+README.md
+*.md
+
+# uv cache if any stored locally (uv primarily uses a global cache)
+.uv_cache/

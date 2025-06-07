@@ -1,13 +1,21 @@
 [project]
 name = "where-to-live"
 version = "0.1.0"
-description = "Add your description here"
+description = "Where to live backend"
 readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.12",
+    "google-cloud-secret-manager>=2.23.3",
+    "google-cloud-storage>=3.1.0",
+    "googlemaps>=4.10.0",
+    "pydantic>=2.11.5",
+    "python-dotenv>=1.1.0",
+    "uvicorn[standard]>=0.34.3",
+]
 authors = [
     { name = "Alec", email = "alecsharpie@gmail.com" }
 ]
-requires-python = ">=3.12"
-dependencies = []
 
 [project.scripts]
 where-to-live = "where_to_live:main"
